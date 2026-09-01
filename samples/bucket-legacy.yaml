@@ -1,0 +1,7 @@
+Resources:
+  LegacyBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      Tags:
+        - Key: guard:component
+          Value: legacy

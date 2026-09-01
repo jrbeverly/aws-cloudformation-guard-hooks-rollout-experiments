@@ -1,0 +1,52 @@
+Parameters:
+  RulesBucket:
+    Type: String
+  FailureMode:
+    Type: String
+    AllowedValues: [WARN, FAIL]
+  InputParamsKey:
+    Type: String
+    Default: ""
+
+Conditions:
+  HasInputParams: !Not [!Equals [!Ref InputParamsKey, ""]]
+
+Resources:
+  HookRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: hooks.cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: read-rules
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:GetObjectVersion, s3:PutObject, s3:ListBucket]
+                Resource:
+                  - !Sub arn:aws:s3:::${RulesBucket}
+                  - !Sub arn:aws:s3:::${RulesBucket}/*
+
+  GuardHook:
+    Type: AWS::CloudFormation::GuardHook
+    Properties:
+      Alias: Private::Guard::S3Rollout
+      ExecutionRole: !GetAtt HookRole.Arn
+      RuleLocation:
+        Uri: !Sub s3://${RulesBucket}/s3-baseline.guard
+      LogBucket: !Ref RulesBucket
+      HookStatus: ENABLED
+      FailureMode: !Ref FailureMode
+      TargetOperations: [RESOURCE]
+      TargetFilters:
+        TargetNames: [AWS::S3::Bucket]
+        Actions: [CREATE, UPDATE]
+      Options: !If
+        - HasInputParams
+        - InputParams:
+            Uri: !Sub s3://${RulesBucket}/${InputParamsKey}
+        - !Ref AWS::NoValue

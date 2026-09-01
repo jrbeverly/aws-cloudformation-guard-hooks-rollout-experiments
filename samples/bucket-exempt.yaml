@@ -1,0 +1,9 @@
+Resources:
+  ExemptBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      Tags:
+        - Key: guard:component
+          Value: web
+        - Key: guard:exempt
+          Value: "yes"

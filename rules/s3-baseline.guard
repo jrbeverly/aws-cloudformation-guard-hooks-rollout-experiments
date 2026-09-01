@@ -1,0 +1,38 @@
+let resource = Resources.*[ Type == 'AWS::S3::Bucket' ]
+let tags = %resource.Properties.Tags
+let config = hook_configuration
+let component = %tags[ Key == 'guard:component' ].Value
+let exclusions = %config.ExclusionList
+let allowlist = %config.AllowList
+let multipart_expiry_days = 7
+
+rule REQUIRE_S3_ENCRYPTION when
+  %tags[ Key == 'guard:exempt' ] empty
+  %config.ExclusionList not exists or %component not in %exclusions
+  %config.AllowList not exists or %component in %allowlist
+{
+  %resource.Properties.BucketEncryption exists
+  <<
+    Violation: Bucket must enable default server-side encryption.
+    Fix: Add BucketEncryption with a ServerSideEncryptionConfiguration.
+  >>
+}
+
+rule REQUIRE_MULTIPART_EXPIRY when
+  %tags[ Key == 'guard:exempt' ] empty
+  %config.ExclusionList not exists or %component not in %exclusions
+  %config.AllowList not exists or %component in %allowlist
+{
+  %resource.Properties.LifecycleConfiguration exists
+  <<
+    Violation: Bucket must expire incomplete multipart uploads after 7 days.
+    Fix: Add a lifecycle rule with AbortIncompleteMultipartUpload and DaysAfterInitiation 7.
+  >>
+  some %resource.Properties.LifecycleConfiguration.Rules[*] {
+    AbortIncompleteMultipartUpload exists
+    AbortIncompleteMultipartUpload.DaysAfterInitiation == %multipart_expiry_days
+    <<
+      Violation: Lifecycle rules must abort incomplete multipart uploads after 7 days.
+    >>
+  }
+}
